@@ -4,6 +4,7 @@ const linhasCategoria = {
   fiis: 10,
   stocks: 13,
   reits: 14,
+  cripto: 17,
 };
 
 const numLinhas = 50;
@@ -65,6 +66,7 @@ function calcularDiferencas(alocacoes, cotacaoDolar) {
     fiis: calcularDiferencasFiis(alocacoes.fiis),
     stocks: calcularDiferencasStocks(alocacoes.stocks, cotacaoDolar),
     reits: calcularDiferencasReits(alocacoes.reits, cotacaoDolar),
+    cripto: calcularDiferencasCripto(alocacoes.cripto, cotacaoDolar),
   };
 }
 
@@ -280,6 +282,49 @@ function calcularDiferencasReits(valorAporte, cotacaoDolar) {
   return ativos;
 }
 
+function calcularDiferencasCripto(valorAporte, cotacaoDolar) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Cripto");
+  const totalAtual = sheet.getRange("D2").getValue();
+  const totalFuturo = totalAtual * cotacaoDolar + valorAporte;
+
+  const linhaInicial = 2;
+
+  const colunas = {
+    ticker: 0,
+    cotacao: 1,
+    quantidade: 2,
+    valorAtual: 3,
+    percentualObjetivo: 5,
+  };
+
+  const ultimaColuna = Math.max(...Object.values(colunas)) + 1;
+
+  const range = sheet.getRange(1, 1, numLinhas, ultimaColuna).getValues();
+
+  const ativos = [];
+  for (let i = linhaInicial; i < numLinhas; i++) {
+    const percentualObjetivo = range[i][colunas.percentualObjetivo];
+
+    if (percentualObjetivo > 0) {
+      const valorAtual = range[i][colunas.valorAtual] * cotacaoDolar;
+      const valorIdeal = totalFuturo * percentualObjetivo;
+      const valorDiferenca = valorIdeal - valorAtual;
+
+      if (valorDiferenca > 0) {
+        ativos.push({
+          ticker: range[i][colunas.ticker],
+          quantidade: range[i][colunas.quantidade],
+          cotacao: range[i][colunas.cotacao],
+          valorDiferenca,
+          linha: i + 1,
+        });
+      }
+    }
+  }
+
+  return ativos;
+}
+
 function calcularAportes(alocacoes, diferencas, cotacaoDolar) {
   return {
     rendaFixa: calcularAportesRendaFixa(alocacoes.rendaFixa, diferencas.rendaFixa),
@@ -287,6 +332,7 @@ function calcularAportes(alocacoes, diferencas, cotacaoDolar) {
     fiis: calcularAportesFiis(alocacoes.fiis, diferencas.fiis),
     stocks: calcularAportesStocks(alocacoes.stocks, diferencas.stocks, cotacaoDolar),
     reits: calcularAportesReits(alocacoes.reits, diferencas.reits, cotacaoDolar),
+    cripto: calcularAportesCripto(alocacoes.cripto, diferencas.cripto, cotacaoDolar),
   };
 }
 
@@ -398,6 +444,28 @@ function calcularAportesReits(valorAlocado, ativos, cotacaoDolar) {
   }, []);
 }
 
+function calcularAportesCripto(valorAlocado, ativos, cotacaoDolar) {
+  const totalDiferenca = ativos.reduce((prev, curr) => prev + curr.valorDiferenca, 0);
+
+  return ativos.reduce((result, ativo) => {
+    const proporcao = ativo.valorDiferenca / totalDiferenca;
+    const valorAporte = (proporcao * valorAlocado) / cotacaoDolar;
+    const quantidade = valorAporte / ativo.cotacao;
+
+    if (valorAporte > aporteMinDolar) {
+      result.push({
+        ticker: ativo.ticker,
+        valorAporte,
+        quantidade,
+        quantidadeFinal: ativo.quantidade + quantidade,
+        linha: ativo.linha,
+      });
+    }
+
+    return result;
+  }, []);
+}
+
 function formatar(num, formato) {
   const formatador = new Intl.NumberFormat(formato === "real" ? "pt-BR" : "en-US", {
     style: "currency",
@@ -443,6 +511,12 @@ function atualizarPlanilha(alocacoes, aportes) {
     reitsSheet.getRange(`M${aporte.linha}`).setValue(aporte.valorAporte);
     reitsSheet.getRange(`N${aporte.linha}`).setValue(aporte.quantidade);
   }
+
+  const criptoSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Cripto");
+  for (const aporte of aportes.cripto) {
+    criptoSheet.getRange(`K${aporte.linha}`).setValue(aporte.valorAporte);
+    criptoSheet.getRange(`L${aporte.linha}`).setValue(aporte.quantidade);
+  }
 }
 
 function limparAportes() {
@@ -477,6 +551,12 @@ function limparAportes() {
   for (let i = 2; i < numLinhas; i++) {
     reitsSheet.getRange(`M${i}`).clearContent();
     reitsSheet.getRange(`N${i}`).clearContent();
+  }
+
+  const criptoSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Cripto");
+  for (let i = 2; i < numLinhas; i++) {
+    criptoSheet.getRange(`K${i}`).clearContent();
+    criptoSheet.getRange(`L${i}`).clearContent();
   }
 }
 
@@ -532,6 +612,17 @@ function efetivarAportes() {
 
     if (quantidadeAporteCell.getValue() > 0) {
       const quantidadeAtualCell = reitsSheet.getRange(`E${i}`);
+
+      quantidadeAtualCell.setValue(quantidadeAtualCell.getValue() + quantidadeAporteCell.getValue());
+    }
+  }
+
+  const criptoSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Cripto");
+  for (let i = 2; i < numLinhas; i++) {
+    const quantidadeAporteCell = criptoSheet.getRange(`L${i}`);
+
+    if (quantidadeAporteCell.getValue() > 0) {
+      const quantidadeAtualCell = criptoSheet.getRange(`C${i}`);
 
       quantidadeAtualCell.setValue(quantidadeAtualCell.getValue() + quantidadeAporteCell.getValue());
     }
