@@ -6,6 +6,9 @@ const linhasCategoria = {
   reits: 14,
 };
 
+const numLinhas = 50;
+const aporteMinDolar = 15;
+
 const macroAlocacaoSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Macro Alocação");
 
 function estimarAportes() {
@@ -71,7 +74,6 @@ function calcularDiferencasRendaFixa(valorAporte) {
   const totalFuturo = totalAtual + valorAporte;
 
   const linhaInicial = 2;
-  const numLinhas = 10;
 
   const colunas = {
     ticker: 0,
@@ -112,7 +114,6 @@ function calcularDiferencasAcoes(valorAporte) {
   const totalFuturo = totalAtual + valorAporte;
 
   const linhaInicial = 2;
-  const numLinhas = 50;
 
   const colunas = {
     ticker: 0,
@@ -156,7 +157,6 @@ function calcularDiferencasFiis(valorAporte) {
   const totalFuturo = totalAtual + valorAporte;
 
   const linhaInicial = 2;
-  const numLinhas = 50;
 
   const colunas = {
     ticker: 0,
@@ -200,7 +200,6 @@ function calcularDiferencasStocks(valorAporte, cotacaoDolar) {
   const totalFuturo = totalAtual * cotacaoDolar + valorAporte;
 
   const linhaInicial = 2;
-  const numLinhas = 50;
 
   const colunas = {
     ticker: 0,
@@ -244,7 +243,6 @@ function calcularDiferencasReits(valorAporte, cotacaoDolar) {
   const totalFuturo = totalAtual * cotacaoDolar + valorAporte;
 
   const linhaInicial = 2;
-  const numLinhas = 50;
 
   const colunas = {
     ticker: 0,
@@ -358,14 +356,13 @@ function calcularAportesFiis(valorAlocado, ativos) {
 
 function calcularAportesStocks(valorAlocado, ativos, cotacaoDolar) {
   const totalDiferenca = ativos.reduce((prev, curr) => prev + curr.valorDiferenca, 0);
-  const minThreshold = 15;
 
   return ativos.reduce((result, ativo) => {
     const proporcao = ativo.valorDiferenca / totalDiferenca;
     const valorAporte = (proporcao * valorAlocado) / cotacaoDolar;
     const quantidade = valorAporte / ativo.cotacao;
 
-    if (valorAporte > minThreshold) {
+    if (valorAporte > aporteMinDolar) {
       result.push({
         ticker: ativo.ticker,
         valorAporte,
@@ -381,14 +378,13 @@ function calcularAportesStocks(valorAlocado, ativos, cotacaoDolar) {
 
 function calcularAportesReits(valorAlocado, ativos, cotacaoDolar) {
   const totalDiferenca = ativos.reduce((prev, curr) => prev + curr.valorDiferenca, 0);
-  const minThreshold = 15;
 
   return ativos.reduce((result, ativo) => {
     const proporcao = ativo.valorDiferenca / totalDiferenca;
     const valorAporte = (proporcao * valorAlocado) / cotacaoDolar;
     const quantidade = valorAporte / ativo.cotacao;
 
-    if (valorAporte > minThreshold) {
+    if (valorAporte > aporteMinDolar) {
       result.push({
         ticker: ativo.ticker,
         valorAporte,
@@ -455,30 +451,30 @@ function limparAportes() {
   }
 
   const rendaFixaSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Renda Fixa");
-  for (let i = 2; i < 50; i++) {
+  for (let i = 2; i < numLinhas; i++) {
     rendaFixaSheet.getRange(`H${i}`).clearContent();
   }
 
   const acoesSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Ações");
-  for (let i = 2; i < 50; i++) {
+  for (let i = 2; i < numLinhas; i++) {
     acoesSheet.getRange(`O${i}`).clearContent();
     acoesSheet.getRange(`P${i}`).clearContent();
   }
 
   const fiisSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("FIIs");
-  for (let i = 2; i < 50; i++) {
+  for (let i = 2; i < numLinhas; i++) {
     fiisSheet.getRange(`N${i}`).clearContent();
     fiisSheet.getRange(`O${i}`).clearContent();
   }
 
   const stocksSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Stocks");
-  for (let i = 2; i < 50; i++) {
+  for (let i = 2; i < numLinhas; i++) {
     stocksSheet.getRange(`M${i}`).clearContent();
     stocksSheet.getRange(`N${i}`).clearContent();
   }
 
   const reitsSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("REITs");
-  for (let i = 2; i < 50; i++) {
+  for (let i = 2; i < numLinhas; i++) {
     reitsSheet.getRange(`M${i}`).clearContent();
     reitsSheet.getRange(`N${i}`).clearContent();
   }
@@ -487,7 +483,7 @@ function limparAportes() {
 // eslint-disable-next-line no-unused-vars
 function efetivarAportes() {
   const rendaFixaSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Renda Fixa");
-  for (let i = 2; i < 50; i++) {
+  for (let i = 2; i < numLinhas; i++) {
     const valorAporteCell = rendaFixaSheet.getRange(`H${i}`);
 
     if (valorAporteCell.getValue() > 0) {
@@ -498,7 +494,7 @@ function efetivarAportes() {
   }
 
   const acoesSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Ações");
-  for (let i = 2; i < 50; i++) {
+  for (let i = 2; i < numLinhas; i++) {
     const quantidadeAporteCell = acoesSheet.getRange(`P${i}`);
 
     if (quantidadeAporteCell.getValue() > 0) {
@@ -509,7 +505,7 @@ function efetivarAportes() {
   }
 
   const fiisSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("FIIs");
-  for (let i = 2; i < 50; i++) {
+  for (let i = 2; i < numLinhas; i++) {
     const quantidadeAporteCell = fiisSheet.getRange(`O${i}`);
 
     if (quantidadeAporteCell.getValue() > 0) {
@@ -520,7 +516,7 @@ function efetivarAportes() {
   }
 
   const stocksSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Stocks");
-  for (let i = 2; i < 50; i++) {
+  for (let i = 2; i < numLinhas; i++) {
     const quantidadeAporteCell = stocksSheet.getRange(`N${i}`);
 
     if (quantidadeAporteCell.getValue() > 0) {
@@ -531,7 +527,7 @@ function efetivarAportes() {
   }
 
   const reitsSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("REITs");
-  for (let i = 2; i < 50; i++) {
+  for (let i = 2; i < numLinhas; i++) {
     const quantidadeAporteCell = reitsSheet.getRange(`N${i}`);
 
     if (quantidadeAporteCell.getValue() > 0) {
