@@ -3,6 +3,7 @@ const linhasCategoria = {
   acoes: 9,
   fiis: 10,
   stocks: 13,
+  reits: 14,
 };
 
 const macroAlocacaoSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Macro Alocação");
@@ -15,9 +16,9 @@ function estimarAportes() {
 
   const alocacoes = calcularAlocacoes(macroDiferencas, valorAporte);
 
-  Logger.log(JSON.stringify({ macroDiferencas, alocacoes }, null, 2));
-
   const diferencas = calcularDiferencas(alocacoes, cotacaoDolar);
+
+  Logger.log(JSON.stringify({ macroDiferencas, alocacoes, diferencas }, null, 2));
 
   const aportes = calcularAportes(alocacoes, diferencas, cotacaoDolar);
 
@@ -60,6 +61,7 @@ function calcularDiferencas(alocacoes, cotacaoDolar) {
     acoes: calcularDiferencasAcoes(alocacoes.acoes),
     fiis: calcularDiferencasFiis(alocacoes.fiis),
     stocks: calcularDiferencasStocks(alocacoes.stocks, cotacaoDolar),
+    reits: calcularDiferencasReits(alocacoes.reits, cotacaoDolar),
   };
 }
 
@@ -236,12 +238,57 @@ function calcularDiferencasStocks(valorAporte, cotacaoDolar) {
   return ativos;
 }
 
+function calcularDiferencasReits(valorAporte, cotacaoDolar) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("REITs");
+  const totalAtual = sheet.getRange("F2").getValue();
+  const totalFuturo = totalAtual * cotacaoDolar + valorAporte;
+
+  const linhaInicial = 2;
+  const numLinhas = 50;
+
+  const colunas = {
+    ticker: 0,
+    cotacao: 3,
+    quantidade: 4,
+    valorAtual: 5,
+    percentualObjetivo: 7,
+  };
+
+  const ultimaColuna = Math.max(...Object.values(colunas)) + 1;
+
+  const range = sheet.getRange(1, 1, numLinhas, ultimaColuna).getValues();
+
+  const ativos = [];
+  for (let i = linhaInicial; i < numLinhas; i++) {
+    const percentualObjetivo = range[i][colunas.percentualObjetivo];
+
+    if (percentualObjetivo > 0) {
+      const valorAtual = range[i][colunas.valorAtual] * cotacaoDolar;
+      const valorIdeal = totalFuturo * percentualObjetivo;
+      const valorDiferenca = valorIdeal - valorAtual;
+
+      if (valorDiferenca > 0) {
+        ativos.push({
+          ticker: range[i][colunas.ticker],
+          quantidade: range[i][colunas.quantidade],
+          cotacao: range[i][colunas.cotacao],
+          valorDiferenca,
+          linha: i + 1,
+        });
+      }
+    }
+  }
+
+  return ativos;
+}
+
 function calcularAportes(alocacoes, diferencas, cotacaoDolar) {
   return {
     rendaFixa: calcularAportesRendaFixa(alocacoes.rendaFixa, diferencas.rendaFixa),
     acoes: calcularAportesAcoes(alocacoes.acoes, diferencas.acoes),
     fiis: calcularAportesFiis(alocacoes.fiis, diferencas.fiis),
     stocks: calcularAportesStocks(alocacoes.stocks, diferencas.stocks, cotacaoDolar),
+    reits: calcularAportesReits(alocacoes.reits, diferencas.reits, cotacaoDolar),
   };
 }
 
@@ -332,6 +379,29 @@ function calcularAportesStocks(valorAlocado, ativos, cotacaoDolar) {
   }, []);
 }
 
+function calcularAportesReits(valorAlocado, ativos, cotacaoDolar) {
+  const totalDiferenca = ativos.reduce((prev, curr) => prev + curr.valorDiferenca, 0);
+  const minThreshold = 15;
+
+  return ativos.reduce((result, ativo) => {
+    const proporcao = ativo.valorDiferenca / totalDiferenca;
+    const valorAporte = (proporcao * valorAlocado) / cotacaoDolar;
+    const quantidade = valorAporte / ativo.cotacao;
+
+    if (valorAporte > minThreshold) {
+      result.push({
+        ticker: ativo.ticker,
+        valorAporte,
+        quantidade,
+        quantidadeFinal: ativo.quantidade + quantidade,
+        linha: ativo.linha,
+      });
+    }
+
+    return result;
+  }, []);
+}
+
 function formatar(num, formato) {
   const formatador = new Intl.NumberFormat(formato === "real" ? "pt-BR" : "en-US", {
     style: "currency",
@@ -371,6 +441,12 @@ function atualizarPlanilha(alocacoes, aportes) {
     stocksSheet.getRange(`M${aporte.linha}`).setValue(aporte.valorAporte);
     stocksSheet.getRange(`N${aporte.linha}`).setValue(aporte.quantidade);
   }
+
+  const reitsSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("REITs");
+  for (const aporte of aportes.reits) {
+    reitsSheet.getRange(`M${aporte.linha}`).setValue(aporte.valorAporte);
+    reitsSheet.getRange(`N${aporte.linha}`).setValue(aporte.quantidade);
+  }
 }
 
 function limparAportes() {
@@ -399,6 +475,12 @@ function limparAportes() {
   for (let i = 2; i < 50; i++) {
     stocksSheet.getRange(`M${i}`).clearContent();
     stocksSheet.getRange(`N${i}`).clearContent();
+  }
+
+  const reitsSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("REITs");
+  for (let i = 2; i < 50; i++) {
+    reitsSheet.getRange(`M${i}`).clearContent();
+    reitsSheet.getRange(`N${i}`).clearContent();
   }
 }
 
@@ -443,6 +525,17 @@ function efetivarAportes() {
 
     if (quantidadeAporteCell.getValue() > 0) {
       const quantidadeAtualCell = stocksSheet.getRange(`E${i}`);
+
+      quantidadeAtualCell.setValue(quantidadeAtualCell.getValue() + quantidadeAporteCell.getValue());
+    }
+  }
+
+  const reitsSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("REITs");
+  for (let i = 2; i < 50; i++) {
+    const quantidadeAporteCell = reitsSheet.getRange(`N${i}`);
+
+    if (quantidadeAporteCell.getValue() > 0) {
+      const quantidadeAtualCell = reitsSheet.getRange(`E${i}`);
 
       quantidadeAtualCell.setValue(quantidadeAtualCell.getValue() + quantidadeAporteCell.getValue());
     }
