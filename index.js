@@ -26,9 +26,9 @@ function estimarAportes() {
 
   const aportes = calcularAportes(alocacoes, diferencas, cotacaoDolar);
 
-  Logger.log(JSON.stringify(aportes, null, 2));
+  Logger.log(JSON.stringify({ aportes }, null, 2));
 
-  atualizarPlanilha(alocacoes, aportes);
+  atualizarPlanilha(aportes, cotacaoDolar);
 }
 
 function calcularMacroDiferencas(valorAporte) {
@@ -477,46 +477,32 @@ function formatar(num, formato) {
   return formatador.format(num);
 }
 
-function atualizarPlanilha(alocacoes, aportes) {
-  for (const [categoria, valorAporte] of Object.entries(alocacoes)) {
-    const linha = linhasCategoria[categoria];
-    macroAlocacaoSheet.getRange(`I${linha}`).setValue(valorAporte);
-  }
+function atualizarPlanilha(aportes, cotacaoDolar) {
+  const planilha = SpreadsheetApp.getActiveSpreadsheet();
+  const categorias = [
+    { nome: "Renda Fixa", campoValor: "H", campoCategoria: "rendaFixa" },
+    { nome: "Ações", campoValor: "O", campoQtd: "P", campoCategoria: "acoes" },
+    { nome: "FIIs", campoValor: "N", campoQtd: "O", campoCategoria: "fiis" },
+    { nome: "Stocks", campoValor: "M", campoQtd: "N", campoCategoria: "stocks", multiplicador: cotacaoDolar },
+    { nome: "REITs", campoValor: "M", campoQtd: "N", campoCategoria: "reits", multiplicador: cotacaoDolar },
+    { nome: "Cripto", campoValor: "K", campoQtd: "L", campoCategoria: "cripto", multiplicador: cotacaoDolar },
+  ];
 
-  const rendaFixaSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Renda Fixa");
-  for (const aporte of aportes.rendaFixa) {
-    rendaFixaSheet.getRange(`H${aporte.linha}`).setValue(aporte.valorAporte);
-  }
+  categorias.forEach((categoria) => {
+    const sheet = planilha.getSheetByName(categoria.nome);
+    let total = 0;
 
-  const acoesSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Ações");
-  for (const aporte of aportes.acoes) {
-    acoesSheet.getRange(`O${aporte.linha}`).setValue(aporte.valorAporte);
-    acoesSheet.getRange(`P${aporte.linha}`).setValue(aporte.quantidade);
-  }
+    for (const aporte of aportes[categoria.campoCategoria]) {
+      sheet.getRange(`${categoria.campoValor}${aporte.linha}`).setValue(aporte.valorAporte);
+      if (categoria.campoQtd) {
+        sheet.getRange(`${categoria.campoQtd}${aporte.linha}`).setValue(aporte.quantidade);
+      }
+      total += aporte.valorAporte;
+    }
 
-  const fiisSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("FIIs");
-  for (const aporte of aportes.fiis) {
-    fiisSheet.getRange(`N${aporte.linha}`).setValue(aporte.valorAporte);
-    fiisSheet.getRange(`O${aporte.linha}`).setValue(aporte.quantidade);
-  }
-
-  const stocksSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Stocks");
-  for (const aporte of aportes.stocks) {
-    stocksSheet.getRange(`M${aporte.linha}`).setValue(aporte.valorAporte);
-    stocksSheet.getRange(`N${aporte.linha}`).setValue(aporte.quantidade);
-  }
-
-  const reitsSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("REITs");
-  for (const aporte of aportes.reits) {
-    reitsSheet.getRange(`M${aporte.linha}`).setValue(aporte.valorAporte);
-    reitsSheet.getRange(`N${aporte.linha}`).setValue(aporte.quantidade);
-  }
-
-  const criptoSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Cripto");
-  for (const aporte of aportes.cripto) {
-    criptoSheet.getRange(`K${aporte.linha}`).setValue(aporte.valorAporte);
-    criptoSheet.getRange(`L${aporte.linha}`).setValue(aporte.quantidade);
-  }
+    total *= categoria.multiplicador || 1;
+    macroAlocacaoSheet.getRange(`I${linhasCategoria[categoria.campoCategoria]}`).setValue(total);
+  });
 }
 
 function limparAportes() {
